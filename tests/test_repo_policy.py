@@ -269,3 +269,53 @@ def test_tested_grocy_version_is_used_everywhere() -> None:
     )
     assert f"Tested with Grocy {version}" in (ROOT / "README.md").read_text()
     assert f"lscr.io/linuxserver/grocy:{version}" in (ROOT / "CONTRIBUTING.md").read_text()
+
+
+def _openspec_pin() -> str:
+    match = re.search(r"@fission-ai/openspec@(\d+\.\d+\.\d+)", (ROOT / "CLAUDE.md").read_text())
+    assert match, "CLAUDE.md must pin the OpenSpec version"
+    return match.group(1)
+
+
+def test_claude_md_describes_the_issue_workflow() -> None:
+    text = (ROOT / "CLAUDE.md").read_text()
+    for phrase in ("agent:propose", "agent:implement", "draft", "Never** merge, approve"):
+        assert phrase in text, phrase
+    assert "Every code change includes tests" in text
+    assert "Anything a user would notice" in text
+
+
+def test_generated_openspec_files_match_the_pinned_version() -> None:
+    pin = _openspec_pin()
+    generated = sorted((ROOT / ".claude").glob("skills/openspec-*/SKILL.md"))
+    generated += sorted((ROOT / ".claude" / "commands" / "opsx").glob("*.md"))
+    assert generated, "openspec init output is missing"
+    for path in generated:
+        text = path.read_text()
+        versions = set(re.findall(r'generatedBy: "([^"]+)"', text))
+        assert versions <= {pin}, (path, versions)
+        # Generated workflows may only pre-approve the openspec CLI, nothing broader.
+        tools = re.findall(r"^allowed-tools: (.+)$", text, re.M)
+        assert set(tools) <= {"Bash(openspec:*)"}, (path, tools)
+
+
+def test_session_start_hook_only_syncs_dependencies() -> None:
+    settings = json.loads((ROOT / ".claude" / "settings.json").read_text())
+    assert set(settings) == {"hooks"} and set(settings["hooks"]) == {"SessionStart"}
+    commands = [h["command"] for g in settings["hooks"]["SessionStart"] for h in g["hooks"]]
+    assert commands and all("uv sync --frozen --all-groups" in c for c in commands)
+    assert all(c.rstrip().endswith("exit 0") for c in commands)
+
+
+def test_agent_workflow_is_pinned_and_matches_the_project() -> None:
+    """The issue-driven agent (HappyCynic/.github actions/agent-sdlc) runs on the same
+    OpenSpec and toolchain as CLAUDE.md, from a pinned commit, with its token only from the
+    `agent` environment."""
+    text = (ROOT / ".github" / "workflows" / "agent.yml").read_text()
+    assert re.search(r"uses: HappyCynic/\.github/actions/agent-sdlc@[0-9a-f]{40} ", text)
+    assert f"openspec_version: {_openspec_pin()}" in text
+    assert "environment: agent" in text and "permissions: {}" in text
+    assert "uv sync --frozen --all-groups" in text
+    assert "secrets.CLAUDE_CODE_OAUTH_TOKEN" in text and text.count("secrets.") == 1
+    triggers = re.findall(r"github\.event\.label\.name == '([a-z:]+)'", text)
+    assert set(triggers) == {"agent:propose", "agent:implement"}

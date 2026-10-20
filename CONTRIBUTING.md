@@ -99,6 +99,18 @@ OpenAPI spec with the tested version's (`.github/scripts/grocy_api_diff.py`).
 
 Run it by hand from the Actions tab, optionally with a version to test.
 
+### Agent pipeline
+
+Issues can be handed to Claude: a maintainer adds **`agent:propose`** to an issue and Claude
+(as `claude[bot]`) writes an OpenSpec change in a draft pull request, then stops; after
+review, **`agent:implement`** has it implement the change in the same pull request, run the
+checks and mark it ready for review. Labels go on the issue. The maintainer reviews and
+merges; the agent never merges, approves, releases or changes labels. The rules it follows
+are in [CLAUDE.md](CLAUDE.md); the pipeline itself is `actions/agent-sdlc` in
+[HappyCynic/.github](https://github.com/HappyCynic/.github) (`docs/agent-pipeline.md`),
+run by `.github/workflows/agent.yml` with the token from the `agent` environment, which
+only `main` may use.
+
 ## Ground rules for changes
 
 - **Read-only by default.** `grocy.py` sends only GET (never to a print endpoint); the tools
