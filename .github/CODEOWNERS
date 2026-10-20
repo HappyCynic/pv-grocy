@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Happy Cynic Software LLC
+# SPDX-License-Identifier: Apache-2.0
+
+# Everything needs review from the maintainer.
+*                         @mwklein
+
+# Listed explicitly so these stay owned even if the default above changes: CI and repository
+# settings, the container build, dependencies, the security policy, the read-only client, the
+# only code allowed to change Grocy and its tools, and the access levels and entity lists
+# (ADR-0002, ADR-0003).
+/.github/                 @mwklein
+/Dockerfile               @mwklein
+/pyproject.toml           @mwklein
+/uv.lock                  @mwklein
+/SECURITY.md              @mwklein
+/docs/adr/                @mwklein
+/src/pv_grocy/grocy.py    @mwklein
+/src/pv_grocy/grocy_write.py @mwklein
+/src/pv_grocy/writes/     @mwklein
+/src/pv_grocy/entities.py @mwklein
+/src/pv_grocy/auth.py     @mwklein
+/src/pv_grocy/config.py   @mwklein
+/tests/snapshots/         @mwklein
+
+# Agent instructions and configuration: what the agent reads before it acts.
+/CLAUDE.md                @mwklein
+/.claude/                 @mwklein
+/openspec/config.yaml     @mwklein

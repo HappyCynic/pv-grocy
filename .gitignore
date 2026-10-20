@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+# Per deployment / per machine (*.env covers .devcontainer/devcontainer.env)
+.devcontainer/compose.local.yaml
+compose.yml
+*.env
+config/pv-grocy.yaml
+# Local notes and deployment files, never committed
+local/

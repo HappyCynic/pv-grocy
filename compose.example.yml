@@ -1,0 +1,39 @@
+# pv-grocy — Docker Compose TEMPLATE.
+#   cp compose.example.yml compose.yml                   # per deployment, gitignored
+#   cp config/pv-grocy.example.yaml config/pv-grocy.yaml # Grocy URL + token hashes
+#   printf 'PV_GROCY_API_KEY=...\n' > pv-grocy.env && chmod 600 pv-grocy.env   # gitignored
+#   docker compose up -d
+#
+# What lives where:
+#   MOUNTED    /config    Your pv-grocy.yaml, read-only. Lives with the deployment.
+#   SECRETS    env_file   The Grocy API key (and PV_GROCY_WRITE=enabled, if you want writes).
+#   EPHEMERAL  /tmp       tmpfs; nothing else in the container is writable. No state.
+
+services:
+  pv-grocy:
+    # Pin by digest in production; each GitHub Release lists the digest.
+    image: ghcr.io/happycynic/pv-grocy:latest
+    restart: unless-stopped
+    env_file: pv-grocy.env
+    ports:
+      # No TLS and bearer-token auth only: publish on a private interface (LAN, VPN) or put
+      # a TLS reverse proxy or tunnel in front. Never expose directly to the internet.
+      - "127.0.0.1:8772:8772"
+    volumes:
+      - ./config/pv-grocy.yaml:/config/pv-grocy.yaml:ro
+    # Reach Grocy by its container name on a shared network (grocy.url: http://grocy:80)
+    # rather than through a public, proxied hostname. Find Grocy's network with
+    # `docker inspect grocy` and name it below.
+    networks: [grocy]
+    # Hardening: read-only root FS, no capabilities, no privilege escalation.
+    # Don't set `user:` — the image already runs as 10001:10001.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+
+networks:
+  grocy:
+    external: true
+    name: grocy_default   # the network your Grocy container is on

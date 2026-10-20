@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest a change or a new tool.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The task or question you want an MCP client to handle, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Suggested change
+      description: |
+        Optional. Note that the server is read-only by default: writes are opt-in by access
+        level (docs/adr/0002), and any new write tool or change to a tool's level needs a
+        design discussion first.

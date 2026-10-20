@@ -1,0 +1,42 @@
+# Dev container services; devcontainer.json points here. Personal additions (extra mounts,
+# a host SSH agent) go in compose.local.yaml, which is gitignored and created on first start
+# from compose.local.example.yaml.
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sleep infinity
+    # Grocy API key for runs against a real Grocy; gitignored, created from
+    # devcontainer.env.example. The demo Grocy below needs none.
+    env_file: devcontainer.env
+    environment:
+      PV_GROCY_CONFIG: /workspaces/pv-grocy/config/pv-grocy.yaml
+      PV_GROCY_PORT: "8772"
+      # Live tests (`uv run pytest -m live`) run against the demo Grocy by default.
+      PV_GROCY_TEST_URL: http://grocy:80
+    volumes:
+      - ..:/workspaces/pv-grocy:cached
+      # Kept off the bind mount: Linux wheels must not land in the host's .venv, and
+      # bind-mount I/O is slow on macOS.
+      - pv-grocy-venv:/home/vscode/.venv
+      - pv-grocy-uv-cache:/home/vscode/.cache/uv
+      - pv-grocy-claude:/home/vscode/.claude
+    depends_on: [grocy]
+
+  # A throwaway Grocy in demo mode: sample data, no login or API key, reset whenever the
+  # container is recreated. Reached as http://grocy:80 from the dev container (the
+  # example config's grocy.url); the editor forwards it to the host ("Demo Grocy").
+  # Never point live tests at a household's Grocy: they change data.
+  grocy:
+    image: lscr.io/linuxserver/grocy:4.7.1@sha256:cae63f6c731f6ad8a3596eef097c136934a3a076e6ae533f933182187fe85a12
+    environment:
+      GROCY_MODE: demo
+      TZ: Etc/UTC
+    tmpfs: [/config]
+
+# Fixed names so the volumes survive changes to the Compose project name.
+volumes:
+  pv-grocy-venv: { name: pv-grocy-venv }
+  pv-grocy-uv-cache: { name: pv-grocy-uv-cache }
+  pv-grocy-claude: { name: pv-grocy-claude }

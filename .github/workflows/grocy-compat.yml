@@ -1,0 +1,184 @@
+# SPDX-FileCopyrightText: 2026 Happy Cynic Software LLC
+# SPDX-License-Identifier: Apache-2.0
+
+# Grocy compatibility check. Weekly, finds the latest Grocy release and, when it is newer
+# than the version the suite last passed against (tests/grocy-version.txt), runs the live
+# suite (every tool, tests/test_live.py) against that release in demo mode. A failure opens
+# a GitHub issue (label grocy-compat) with the failing tests and Grocy's API changes; a pass
+# is reported in the run summary, and tests/grocy-version.txt is bumped by hand in a PR.
+#
+# Manual run: Actions -> grocy-compat -> Run workflow, optionally with a version (e.g. to
+# re-test the current one, or a pre-release linuxserver tag that already exists).
+# Actions are pinned to commit SHAs (version in the comment); Dependabot keeps them current.
+name: grocy-compat
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      grocy_version:
+        description: "Grocy version to test, e.g. 4.8.0 (default: the latest release)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grocy-compat
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write # open or update the compatibility issue
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LABEL: grocy-compat
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Versions
+        id: v
+        env:
+          REQUESTED: ${{ inputs.grocy_version }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          tested="$(tr -d '[:space:]' < tests/grocy-version.txt)"
+          if [ -n "$REQUESTED" ]; then
+            candidate="${REQUESTED#v}"
+          else
+            candidate="$(gh api repos/grocy/grocy/releases/latest --jq .tag_name)"
+            candidate="${candidate#v}"
+          fi
+          # Only a plain version reaches the shell, image names and issue titles below.
+          if ! [[ "$candidate" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::not a Grocy version: $candidate"
+            exit 1
+          fi
+          image="lscr.io/linuxserver/grocy:$candidate"
+          run=true
+          if [ "$candidate" = "$tested" ] && [ "$EVENT" = schedule ]; then
+            echo "Grocy $candidate is the tested version; nothing new." >> "$GITHUB_STEP_SUMMARY"
+            run=false
+          elif ! docker manifest inspect "$image" > /dev/null 2>&1; then
+            # linuxserver usually publishes a day or two after Grocy's release.
+            echo "Grocy $candidate is released but $image is not published yet; next run will retry." >> "$GITHUB_STEP_SUMMARY"
+            run=false
+          fi
+          { echo "tested=$tested"; echo "candidate=$candidate"; echo "image=$image"; echo "run=$run"; } >> "$GITHUB_OUTPUT"
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        if: steps.v.outputs.run == 'true'
+      - name: Install
+        if: steps.v.outputs.run == 'true'
+        run: uv python install 3.14 && uv sync --frozen
+
+      - name: Start Grocy ${{ steps.v.outputs.candidate }} (demo mode)
+        id: grocy
+        if: steps.v.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          IMAGE: ${{ steps.v.outputs.image }}
+        run: |
+          docker run -d --name grocy -p 127.0.0.1:9283:80 -e GROCY_MODE=demo "$IMAGE"
+          # The first page view builds the demo database; wait until the API serves it.
+          for _ in $(seq 1 90); do
+            curl -fsSL -o /dev/null http://127.0.0.1:9283/ 2>/dev/null || true
+            if curl -fsS http://127.0.0.1:9283/api/objects/products 2>/dev/null | grep -q '"name"'; then
+              curl -fsS http://127.0.0.1:9283/api/system/info
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Grocy did not come up with demo data within 3 minutes." | tee grocy-start.txt
+          docker logs grocy 2>&1 | tail -50 | tee -a grocy-start.txt
+          exit 1
+
+      - name: Live tests
+        id: live
+        if: steps.v.outputs.run == 'true' && steps.grocy.outcome == 'success'
+        continue-on-error: true
+        env:
+          PV_GROCY_TEST_URL: http://127.0.0.1:9283
+        run: |
+          set -o pipefail
+          uv run pytest -m live -p no:cacheprovider --tb=short -rfE 2>&1 | tee live.txt
+
+      - name: API changes
+        if: steps.v.outputs.run == 'true'
+        env:
+          OLD: ${{ steps.v.outputs.tested }}
+          NEW: ${{ steps.v.outputs.candidate }}
+        run: python3 -I .github/scripts/grocy_api_diff.py "$OLD" "$NEW" > api-diff.md
+
+      - name: Report
+        if: steps.v.outputs.run == 'true'
+        env:
+          TESTED: ${{ steps.v.outputs.tested }}
+          VERSION: ${{ steps.v.outputs.candidate }}
+          GROCY: ${{ steps.grocy.outcome }}
+          LIVE: ${{ steps.live.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$GROCY" = success ] && [ "$LIVE" = success ]; then
+            {
+              echo "## Grocy $VERSION: compatible"
+              echo
+              echo "Every tool passed against Grocy $VERSION."
+              newest="$(printf '%s\n%s\n' "$TESTED" "$VERSION" | sort -V | tail -1)"
+              if [ "$VERSION" != "$TESTED" ] && [ "$newest" = "$VERSION" ]; then
+                echo "To record it, set \`tests/grocy-version.txt\` to \`$VERSION\` and update the"
+                echo "version pins it lists (\`uv run pytest tests/test_repo_policy.py\` names them)."
+              fi
+              echo
+              cat api-diff.md
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          title="Grocy $VERSION: live tests fail against the new release"
+          {
+            echo "The weekly compatibility check ran the live suite (every tool) against"
+            echo "Grocy $VERSION in demo mode, and it failed. pv-grocy is tested with $TESTED."
+            echo
+            echo "- Run: $RUN_URL"
+            echo "- Release notes: https://github.com/grocy/grocy/releases/tag/v$VERSION"
+            echo
+            echo "## What failed"
+            echo
+            echo '```text'
+            if [ "$GROCY" != success ]; then
+              cat grocy-start.txt 2>/dev/null || echo "Grocy did not start."
+            else
+              # The short summary and the tracebacks, without the progress dots.
+              grep -v '^\.*\s*\[' live.txt | tail -c 40000
+            fi
+            echo '```'
+            echo
+            echo "## API changes"
+            echo
+            cat api-diff.md
+            echo
+            echo "## To do"
+            echo
+            echo "- [ ] Find the Grocy change behind each failure (release notes, API changes above)."
+            echo "- [ ] Fix the server and \`tests/fakegrocy.py\`, with tests."
+            echo "- [ ] Set \`tests/grocy-version.txt\` and the version pins to $VERSION; re-run this workflow."
+          } > issue.md
+
+          gh label create "$LABEL" --color B60205 \
+            --description "Grocy release compatibility" --force > /dev/null
+          existing="$(gh issue list --state open --label "$LABEL" --search "in:title \"Grocy $VERSION:\"" \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still failing: $RUN_URL"
+            echo "Updated issue #$existing" >> "$GITHUB_STEP_SUMMARY"
+          else
+            url="$(gh issue create --title "$title" --label "$LABEL" --body-file issue.md)"
+            echo "Opened $url" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 1

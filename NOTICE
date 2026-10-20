@@ -1,0 +1,10 @@
+Private Grocy MCP (pv-grocy)
+Copyright 2026 Happy Cynic Software LLC
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Not affiliated with or endorsed by the Grocy project. Grocy is developed by Bernd Bestel
+(https://grocy.info).
+
+The tool coverage was checked against grocy-mcp by Moustafa Attia
+(https://github.com/moustafattia/grocy-mcp, MIT License). No code from it is included.

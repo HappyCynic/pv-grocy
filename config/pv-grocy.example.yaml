@@ -1,0 +1,27 @@
+# pv-grocy configuration TEMPLATE. Copy to pv-grocy.yaml (gitignored) and fill in.
+# Not secret: tokens are SHA-256 hashes, and the Grocy API key comes from the environment
+# (PV_GROCY_API_KEY). See docs/adr/0002-opt-in-writes.md for access levels.
+#
+# Generate a token and its hash:
+#   uv run pv-grocy hash-token        (or: docker run --rm <image> hash-token)
+
+grocy:
+  # Grocy's base URL as this server reaches it, e.g. the container name on a shared
+  # Docker network. Prefer a private address over a public, proxied one.
+  url: http://grocy:80
+  timeout_seconds: 30
+
+tokens:
+  # One entry per MCP client, so each can be revoked on its own.
+  - label: claude
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    # access: read (default) | write | full. write and full need PV_GROCY_WRITE=enabled.
+    #   read:  every read tool; nothing can change Grocy.
+    #   write: also everyday changes (stock, shopping list, recipes, meal plan, chores,
+    #          tasks, batteries, equipment, master data, printing). Each is reversible or
+    #          easily redone; stock changes return a transaction_id for stock_undo.
+    #   full:  also what cannot be undone or reaches beyond the household UI: deleting
+    #          tasks and rows, clearing a shopping list, raw entity writes, file upload and
+    #          delete, and the iCal sharing link (a credential).
+    access: read
+    # max_writes_per_hour: 60   # write calls (batch items count each); held in memory
