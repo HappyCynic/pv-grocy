@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from .conftest import Harness
-from .fakegrocy import FakeGrocy
+from .fakegrocy import FakeGrocy, seed
 
 
 async def test_exact_name_ignoring_case_and_spaces(h: Harness) -> None:
@@ -17,7 +17,7 @@ async def test_exact_name_ignoring_case_and_spaces(h: Harness) -> None:
 async def test_a_part_of_a_name_is_never_picked(h: Harness, fake: FakeGrocy) -> None:
     msg = await h.error("stock_add", product="almond", amount=1)
     assert "no product is named exactly 'almond'" in msg and "'Almond milk' (id 2)" in msg
-    assert fake.db["stock_log"] == []
+    assert fake.db["stock_log"] == seed()["stock_log"]
 
 
 async def test_several_records_with_the_same_name(h: Harness, fake: FakeGrocy) -> None:

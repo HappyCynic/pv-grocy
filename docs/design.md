@@ -43,7 +43,7 @@ in-memory state is the per-token write counter.
 
 ## Tools
 
-76 tools: 31 read, 37 `write`, 8 `full`. The full list by level is in
+77 tools: 32 read, 37 `write`, 8 `full`. The full list by level is in
 [ADR-0002](adr/0002-opt-in-writes.md); each tool's description says what it does, its limits
 and how to page.
 

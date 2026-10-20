@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import base64
 
+import pytest
+
+from pv_grocy.errors import GrocyRejected
+
 from .conftest import Harness
 from .fakegrocy import FakeGrocy
 
@@ -62,6 +66,86 @@ async def test_stock_journal_filters_and_paging(h: Harness) -> None:
     assert (await h.call("stock_journal", as_="reader", transaction_id=tx))["entries"][0][
         "transaction_id"
     ] == tx
+
+
+async def test_fake_price_history_matches_grocy(h: Harness, fake: FakeGrocy) -> None:
+    assert h.runtime.services is not None
+    reader = h.runtime.services.reader
+    rows = await reader.get("/stock/products/1/price-history")
+    # Newest first; the purchase without a price and the undone one are left out.
+    assert [(r["date"], r["price"]) for r in rows] == [
+        ("2026-10-15", 1.2),
+        ("2026-10-01", 1.49),
+        ("2026-09-12", 0.99),
+    ]
+    assert [set(r) for r in rows] == [{"date", "price", "shopping_location"}] * 3
+    assert rows[0]["shopping_location"] == {"id": 2, "name": "Market"}
+    assert rows[1]["shopping_location"] is None
+    assert await reader.get("/stock/products/2/price-history") == []
+    await h.call("stock_add", product="Almond milk", amount=1, price=2.5, store="Market")
+    await h.call("stock_add", product="Almond milk", amount=1)  # no price: not in the history
+    tx = (await h.call("stock_add", product="Almond milk", amount=1, price=9))["transaction_id"]
+    await h.call("stock_undo", transaction_id=tx)
+    rows = await reader.get("/stock/products/2/price-history")
+    assert rows == [
+        {"date": "2026-10-20", "price": 2.5, "shopping_location": {"id": 2, "name": "Market"}}
+    ]
+    with pytest.raises(GrocyRejected, match="does not exist"):  # Grocy answers 400
+        await reader.get("/stock/products/99/price-history")
+    assert fake.requests[-1] == ("GET", "/stock/products/99/price-history")
+
+
+MILK_PRICES = [
+    {"date": "2026-10-15", "price": 1.2, "store": "Market"},
+    {"date": "2026-10-01", "price": 1.49, "store": None},
+    {"date": "2026-09-12", "price": 0.99, "store": "Corner shop"},
+]
+
+
+async def test_stock_price_history_by_name_and_id(h: Harness) -> None:
+    out = await h.call("stock_price_history", as_="reader", product="Milk")
+    assert out["product"] == {"id": 1, "name": "Milk"} and out["unit"] == "Bottle"
+    assert out["prices"] == MILK_PRICES  # newest first; the second one has no store
+    assert (out["total"], out["next_offset"]) == (3, None)
+    assert out["lowest"] == MILK_PRICES[2]
+    assert out["highest"] == MILK_PRICES[1]
+    assert out["latest"] == MILK_PRICES[0]
+    by_id = await h.call("stock_price_history", as_="reader", product=1)
+    assert by_id["product"] == out["product"] and by_id["prices"] == MILK_PRICES
+
+
+async def test_stock_price_history_partial_name_is_not_looked_up(
+    h: Harness, fake: FakeGrocy
+) -> None:
+    msg = await h.error("stock_price_history", as_="reader", product="almond")
+    assert "no product is named exactly 'almond'" in msg and "'Almond milk' (id 2)" in msg
+    assert not [p for _m, p in fake.requests if p.endswith("/price-history")]
+
+
+async def test_stock_price_history_pages_keep_the_summary(h: Harness) -> None:
+    out = await h.call("stock_price_history", as_="reader", product="Milk", limit=1, offset=1)
+    assert out["prices"] == [MILK_PRICES[1]] and out["next_offset"] == 2
+    assert (out["lowest"], out["highest"], out["latest"]) == (
+        MILK_PRICES[2],
+        MILK_PRICES[1],
+        MILK_PRICES[0],
+    )
+    out = await h.call("stock_price_history", as_="reader", product="Milk", limit=2)
+    assert out["prices"] == MILK_PRICES[:2] and out["total"] == 3 and out["next_offset"] == 2
+
+
+async def test_stock_price_history_ties_report_the_most_recent(h: Harness) -> None:
+    # Lowest price (0.99) at Corner shop in September, then at Market in October.
+    await h.call("stock_add", product="Milk", amount=1, price=0.99, store="Market")
+    out = await h.call("stock_price_history", as_="reader", product="Milk")
+    assert out["lowest"] == {"date": "2026-10-20", "price": 0.99, "store": "Market"}
+    assert out["latest"] == out["lowest"] and out["total"] == 4
+
+
+async def test_stock_price_history_never_bought(h: Harness) -> None:
+    out = await h.call("stock_price_history", as_="reader", product="Almond milk")
+    assert out["prices"] == [] and out["total"] == 0 and out["next_offset"] is None
+    assert out["lowest"] is None and out["highest"] is None and out["latest"] is None
 
 
 async def test_shopping_list_view(h: Harness) -> None:

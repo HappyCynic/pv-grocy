@@ -139,7 +139,7 @@ def test_each_level_lists_only_its_tools(client: TestClient) -> None:
 
 def test_read_only_deployment_has_no_write_tools(ro_client: TestClient) -> None:
     names = tools(ro_client, TOKENS["admin"])  # every token is read-only without the switch
-    assert len(names) == 31
+    assert len(names) == 32
     assert not any(
         n.endswith(("_add", "_apply", "_delete", "_undo", "_create"))
         for n in names

@@ -39,6 +39,29 @@ def _tx() -> str:
     return f"{next(_ids):013x}"
 
 
+def _purchase(
+    log_id: int, date: str, price: float | None, store: int | None, undone: int = 0
+) -> dict[str, Any]:
+    """A seeded purchase of one bottle of Milk, as a stock_log row."""
+    return {
+        "id": log_id,
+        "product_id": 1,
+        "amount": 1,
+        "transaction_type": "purchase",
+        "transaction_id": f"5eed{log_id:09x}",
+        "undone": undone,
+        "spoiled": 0,
+        "location_id": 1,
+        "stock_id": f"seed{log_id}",
+        "best_before_date": "2026-10-22",
+        "purchased_date": date,
+        "price": price,
+        "shopping_location_id": store,
+        "recipe_id": None,
+        "row_created_timestamp": f"{date} 10:00:00",
+    }
+
+
 def seed() -> dict[str, list[dict[str, Any]]]:
     return {
         "quantity_units": [
@@ -51,7 +74,7 @@ def seed() -> dict[str, list[dict[str, Any]]]:
             {"id": 2, "name": "Pantry", "is_freezer": 0, "active": 1},
             {"id": 3, "name": "Freezer", "is_freezer": 1, "active": 1},
         ],
-        "shopping_locations": [{"id": 1, "name": "Corner shop"}],
+        "shopping_locations": [{"id": 1, "name": "Corner shop"}, {"id": 2, "name": "Market"}],
         "product_groups": [{"id": 1, "name": "Dairy"}],
         "products": [
             {
@@ -144,7 +167,13 @@ def seed() -> dict[str, list[dict[str, Any]]]:
                 "note": None,
             },
         ],
-        "stock_log": [],
+        "stock_log": [  # Milk's earlier purchases, for its price history
+            _purchase(1, "2026-09-12", 0.99, 1),
+            _purchase(2, "2026-10-01", 1.49, None),
+            _purchase(3, "2026-10-05", None, 1),  # no price: not in the price history
+            _purchase(4, "2026-10-08", 1.09, 1, undone=1),
+            _purchase(5, "2026-10-15", 1.2, 2),
+        ],
         "shopping_lists": [{"id": 1, "name": "Shopping list"}, {"id": 2, "name": "Hardware"}],
         "shopping_list": [
             {
@@ -550,7 +579,18 @@ class FakeGrocy:
         }
         self.db["stock"].append(e)
         self.undo.setdefault(tx, []).append((e["id"], amount, True))
-        return [self.log(tx, pid, amount, kind, e)]
+        return [
+            self.log(
+                tx,
+                pid,
+                amount,
+                kind,
+                e,
+                purchased_date=TODAY,
+                price=body.get("price"),
+                shopping_location_id=body.get("shopping_location_id"),
+            )
+        ]
 
     def take(
         self, pid: int, amount: float, location_id: int | None, tx: str, kind: str, **extra: Any
@@ -572,6 +612,29 @@ class FakeGrocy:
             self.undo.setdefault(tx, []).append((e["id"], -use, False))
             rows.append(self.log(tx, pid, -use, kind, e, **extra))
         return rows
+
+    def price_history(self, pid: int) -> list[dict[str, Any]]:
+        """Like Grocy 4.7.1: priced, not undone purchases, newest first, store embedded."""
+        self.product(pid)
+        rows = [
+            r
+            for r in self.db["stock_log"]
+            if r["product_id"] == pid
+            and r["transaction_type"] == "purchase"
+            and not r["undone"]
+            and r.get("price") is not None
+        ]
+        rows.sort(key=lambda r: (r["purchased_date"], r["id"]), reverse=True)
+        return [
+            {
+                "date": r["purchased_date"],
+                "price": r["price"],
+                "shopping_location": copy.deepcopy(
+                    self.get_row("shopping_locations", r.get("shopping_location_id") or 0)
+                ),
+            }
+            for r in rows
+        ]
 
     # ------------------------------------------------------------------ recipes
 
@@ -821,6 +884,8 @@ class FakeGrocy:
                 ]
             if parts[3] == "printlabel":
                 return self.print_label(path)
+            if parts[3] == "price-history" and method == "GET":
+                return self.price_history(pid)
             amount = float(body.get("amount", 1))
             tx = _tx()
             if parts[3] == "add":

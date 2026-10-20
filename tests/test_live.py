@@ -89,6 +89,13 @@ async def test_every_read_tool_works(live: Harness) -> None:
         ("workflow_match_products", {"items": [{"name": p["name"]}, {"name": "zz-no-such-thing"}]}),
     ]:
         await h.call(tool, as_="reader", **args)
+    history = await h.call("stock_price_history", as_="reader", product=p["product_id"])
+    # The fake copies Grocy's price-history shape; a renamed field would show up as nulls here.
+    assert history["unit"] and history["total"] >= len(history["prices"])
+    for row in history["prices"]:
+        assert row["date"] and row["price"] is not None, row
+    if history["prices"]:
+        assert history["latest"] == history["prices"][0] and history["lowest"]
     recipes = (await h.call("recipes_list", as_="reader"))["recipes"]
     if recipes:
         for tool in ("recipe_details", "recipe_fulfillment", "recipe_consume_preview"):

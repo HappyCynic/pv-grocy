@@ -2811,6 +2811,52 @@
       "type": "object"
     }
   },
+  "stock_price_history": {
+    "access": "read",
+    "annotations": {
+      "destructive_hint": false,
+      "idempotent_hint": true,
+      "open_world_hint": false,
+      "read_only_hint": true
+    },
+    "description": "A product's past purchase prices, newest first: date, price per stock unit and store (null when the purchase had none), with the stock unit. `lowest`, `highest` and `latest` cover the whole history whatever the page; on a tie the most recent purchase is reported. At most 50 prices per page by default (200 with `limit`). Paging: when `next_offset` is not null there are more results; call again with the same arguments and `offset` set to `next_offset`.",
+    "input_schema": {
+      "properties": {
+        "limit": {
+          "default": 50,
+          "description": "Results per page (1-200)",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "description": "Results to skip; use `next_offset`",
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "product": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The product's id (an integer) or its exact name (a string, case-insensitive). A name that matches nothing, or several, is an error listing candidates.",
+          "title": "Product"
+        }
+      },
+      "required": [
+        "product"
+      ],
+      "title": "stock_price_historyArguments",
+      "type": "object"
+    }
+  },
   "stock_product": {
     "access": "read",
     "annotations": {

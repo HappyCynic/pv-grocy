@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Happy Cynic Software LLC
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stock reads: what is in stock, what is due, one product, its entries, search, journal."""
+"""Stock reads: what is in stock, what is due, one product, its entries and price history,
+search, journal."""
 
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ from pydantic import Field
 from ..resolve import Ref, names, resolve, resolve_id
 from ..tooling import (
     LIMIT_DEFAULT,
+    LIMIT_MAX,
     PAGING_NOTE,
     Limit,
     Offset,
@@ -167,6 +169,45 @@ async def stock_entries(
         for r in rows
     ]
     return paged("entries", entries, limit, offset, product_id=pid)
+
+
+@TOOLS.read(
+    "A product's past purchase prices, newest first: date, price per stock unit and store "
+    "(null when the purchase had none), with the stock unit. `lowest`, `highest` and "
+    "`latest` cover the whole history whatever the page; on a tie the most recent purchase "
+    f"is reported. At most {LIMIT_DEFAULT} prices per page by default ({LIMIT_MAX} with "
+    "`limit`). " + PAGING_NOTE
+)
+async def stock_price_history(
+    product: Annotated[Ref, ref_field("product")],
+    limit: Limit = LIMIT_DEFAULT,
+    offset: Offset = 0,
+) -> dict[str, Any]:
+    p = await resolve("product", product)
+    rows = await grocy().get(f"/stock/products/{p['id']}/price-history") or []
+    units = await names("quantity_units")
+    prices = [
+        {
+            "date": r.get("date"),
+            "price": r.get("price"),
+            "store": (r.get("shopping_location") or {}).get("name"),
+        }
+        for r in rows
+        if r.get("price") is not None  # Grocy lists only priced purchases; be safe anyway
+    ]
+    prices.sort(key=lambda x: str(x["date"] or ""), reverse=True)  # stable: keeps Grocy's order
+    # min/max return the first of equal prices: the most recent purchase.
+    return paged(
+        "prices",
+        prices,
+        limit,
+        offset,
+        product={"id": p["id"], "name": p.get("name")},
+        unit=units.get(p.get("qu_id_stock") or 0),
+        lowest=min(prices, key=lambda x: float(x["price"]), default=None),
+        highest=max(prices, key=lambda x: float(x["price"]), default=None),
+        latest=prices[0] if prices else None,
+    )
 
 
 @TOOLS.read(
