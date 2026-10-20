@@ -31,9 +31,9 @@ with the product's stock unit. It SHALL send no write and no print request to Gr
 ### Requirement: Price summary over the whole history
 The result SHALL include `lowest`, `highest` and `latest`, each with date, price and store,
 computed over the product's whole history regardless of `limit` and `offset`; when several
-purchases share the lowest or highest price, the most recent SHALL be reported. Purchases
-without a price SHALL be listed but left out of the summary, and all three SHALL be null
-when no purchase has a price.
+purchases share the lowest or highest price, the most recent SHALL be reported. Grocy's
+price history only contains purchases that have a price, so every listed purchase counts
+towards the summary; all three SHALL be null when the history is empty.
 
 #### Scenario: Summary on a later page
 - **WHEN** `stock_price_history` is called with `limit` 1 and `offset` 1 for a product with
@@ -47,7 +47,8 @@ when no purchase has a price.
 - **THEN** `lowest` reports the October purchase and its store
 
 #### Scenario: Never bought
-- **WHEN** `stock_price_history` is called for a product with no purchases
+- **WHEN** `stock_price_history` is called for a product with no purchases, so Grocy returns
+  an empty price history
 - **THEN** `prices` is empty, `next_offset` is null and `lowest`, `highest` and `latest`
   are null
 

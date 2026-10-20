@@ -8,7 +8,9 @@ maps, and `paged()` for `limit` / `offset` / `next_offset`. Grocy 4.7.1 serves
 `GET /stock/products/{productId}/price-history` as a JSON array, newest purchase first, of
 objects with `date` (purchase date), `price` (per stock unit) and `shopping_location` (the
 store record, or null when the purchase had none). It is derived from purchase bookings, so
-an undone purchase drops out of it.
+an undone purchase drops out of it, and it only returns purchases that have a price
+(checked against Grocy 4.7.1 by the reviewer: four purchases, one without a price, give
+three rows).
 
 ## Goals / Non-Goals
 
@@ -39,17 +41,19 @@ an undone purchase drops out of it.
   stable, so the fake and Grocy cannot disagree on order.
 - **Ties:** when several purchases share the lowest or highest price, the most recent one is
   reported (the first in newest-first order). This answers "where was it cheapest lately".
-- **Missing prices:** rows whose `price` is null are listed but ignored by the summary.
+- **Missing prices:** Grocy does not return purchases without a price, so every row counts
+  towards the summary. The code may still skip a row whose `price` is null defensively, but
+  no spec scenario or test depends on that.
 - **Limits and paging:** `limit` defaults to `LIMIT_DEFAULT` (50), at most `LIMIT_MAX` (200),
   `offset` from 0; the whole history is fetched once (Grocy does not page this endpoint) and
   paged in memory with `paged()`. The description states the default, the cap and
   `PAGING_NOTE`.
 - **Fake Grocy:** `tests/fakegrocy.py` serves the route from purchase rows of `stock_log`
   that are not undone and have a price (newest first), with `shopping_location` embedded
-  from `shopping_locations`. Purchases record `price` and `shopping_location_id` from the
-  request body on the log row. A few seeded purchase log rows (different dates, prices and
-  one without a store) give the tests a history; an unknown product answers 400 like other
-  product routes.
+  from `shopping_locations`; like Grocy 4.7.1, it never returns a purchase without a price.
+  Purchases record `price` and `shopping_location_id` from the request body on the log row.
+  A few seeded purchase log rows (different dates, prices and one without a store) give the
+  tests a history; an unknown product answers 400 like other product routes.
 
 Alternatives considered: reading `stock_log` through the generic objects endpoint and
 computing history ourselves (duplicates Grocy logic and misses its unit handling); adding
