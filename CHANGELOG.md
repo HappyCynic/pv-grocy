@@ -7,15 +7,16 @@ each version.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-20
+
 ### Added
 
 - First version: an MCP server over a household's Grocy (tested with Grocy 4.7.1), serving
   stateless Streamable HTTP at `/mcp` with SHA-256-hashed bearer tokens.
 - 32 read tools: stock (overview, due, product, entries, price history, search, barcode,
-  journal), shopping
-  lists, recipes (details, fulfillment, consume preview), meal plan, chores, tasks,
-  batteries, equipment, generic entities and search, calendar summary and iCal, file
-  download, workflow previews (receipt intake, shopping reconcile), system info.
+  journal), shopping lists, recipes (details, fulfillment, consume preview), meal plan,
+  chores, tasks, batteries, equipment, generic entities and search, calendar summary and
+  iCal, file download, workflow previews (receipt intake, shopping reconcile), system info.
 - `stock_price_history`: a product's past purchase prices, newest first, with date, price
   per stock unit and store, plus the lowest, highest and most recent price over the whole
   history; pages with `limit` / `offset` / `next_offset`.
@@ -28,3 +29,6 @@ each version.
   repeated once sent; names resolve exactly or not at all.
 - `GET /healthz` (and `?deep=1`, which checks Grocy's version), a JSON audit line per tool
   call on stdout, and a hardened container image (non-root, read-only root filesystem).
+
+[Unreleased]: https://github.com/HappyCynic/pv-grocy/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/HappyCynic/pv-grocy/releases/tag/v0.1.0
