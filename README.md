@@ -11,7 +11,7 @@ shopping list or plan the week's meals.
 - **No silent data errors.** A write is never sent twice, and never lands on a record you
   did not name exactly ([ADR-0003](docs/adr/0003-grocy-client-safety.md)). Every stock change
   returns a `transaction_id` that `stock_undo` reverts.
-- **Typed tools.** 76 tools with JSON Schema arguments, structured results and paging.
+- **Typed tools.** 77 tools with JSON Schema arguments, structured results and paging.
 - **Hardened container.** Non-root, read-only root filesystem, no local state.
 
 Tested with Grocy 4.7.1; needs Grocy 4.4.1 or later. Not affiliated with the Grocy project.
@@ -20,7 +20,7 @@ Tested with Grocy 4.7.1; needs Grocy 4.4.1 or later. Not affiliated with the Gro
 
 | Area | Read tools | Write tools (`write` level unless marked *full*) |
 |---|---|---|
-| Stock | `stock_overview`, `stock_due`, `stock_product`, `stock_entries`, `stock_search`, `stock_barcode_lookup`, `stock_journal` | `stock_add`, `stock_consume`, `stock_open`, `stock_transfer`, `stock_inventory`, `stock_undo` |
+| Stock | `stock_overview`, `stock_due`, `stock_product`, `stock_entries`, `stock_price_history`, `stock_search`, `stock_barcode_lookup`, `stock_journal` | `stock_add`, `stock_consume`, `stock_open`, `stock_transfer`, `stock_inventory`, `stock_undo` |
 | Shopping | `shopping_list_view` | `shopping_list_add`, `shopping_list_update`, `shopping_list_remove`, `shopping_list_add_missing`, `shopping_list_clear` (*full*) |
 | Recipes | `recipes_list`, `recipe_details`, `recipe_fulfillment`, `recipe_consume_preview` | `recipe_consume`, `recipe_add_missing_to_shopping_list`, `recipe_create`, `recipe_update`, `recipe_ingredient_add`, `recipe_ingredient_remove` |
 | Meal plan | `meal_plan_list` | `meal_plan_add`, `meal_plan_remove`, `meal_plan_add_missing_to_shopping_list` |

@@ -11,10 +11,14 @@ each version.
 
 - First version: an MCP server over a household's Grocy (tested with Grocy 4.7.1), serving
   stateless Streamable HTTP at `/mcp` with SHA-256-hashed bearer tokens.
-- 31 read tools: stock (overview, due, product, entries, search, barcode, journal), shopping
+- 32 read tools: stock (overview, due, product, entries, price history, search, barcode,
+  journal), shopping
   lists, recipes (details, fulfillment, consume preview), meal plan, chores, tasks,
   batteries, equipment, generic entities and search, calendar summary and iCal, file
   download, workflow previews (receipt intake, shopping reconcile), system info.
+- `stock_price_history`: a product's past purchase prices, newest first, with date, price
+  per stock unit and store, plus the lowest, highest and most recent price over the whole
+  history; pages with `limit` / `offset` / `next_offset`.
 - Opt-in writes ([ADR-0002](docs/adr/0002-opt-in-writes.md)), off by default: deployment
   switch `PV_GROCY_WRITE=enabled` and per-token `access: read | write | full`, with an
   hourly write limit per token (default 60; batch items count each). 37 `write` tools for

@@ -31,9 +31,9 @@ fails before anything is sent.
 
 ### What each level allows
 
-**read** (31 tools): every read tool. Nothing can change Grocy.
-`stock_overview`, `stock_due`, `stock_product`, `stock_entries`, `stock_search`,
-`stock_barcode_lookup`, `stock_journal`, `shopping_list_view`, `recipes_list`,
+**read** (32 tools): every read tool. Nothing can change Grocy.
+`stock_overview`, `stock_due`, `stock_product`, `stock_entries`, `stock_price_history`,
+`stock_search`, `stock_barcode_lookup`, `stock_journal`, `shopping_list_view`, `recipes_list`,
 `recipe_details`, `recipe_fulfillment`, `recipe_consume_preview`, `meal_plan_list`,
 `chores_list`, `chore_details`, `tasks_list`, `batteries_list`, `battery_details`,
 `equipment_list`, `equipment_details`, `entity_list`, `entity_get`, `entity_describe`,
