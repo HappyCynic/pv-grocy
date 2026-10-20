@@ -2,12 +2,12 @@
 
 ## 1. Fake Grocy price history
 
-- [ ] 1.1 Write tests in `tests/test_tools_read.py` that call
+- [x] 1.1 Write tests in `tests/test_tools_read.py` that call
   `GET /stock/products/{id}/price-history` on the fake (through the read client) and assert
   Grocy 4.7.1's shape: an array, newest first, of `{date, price, shopping_location}` with the
   store record or null, undone purchases and purchases without a price left out (as in Grocy
   4.7.1), 400 for an unknown product
-- [ ] 1.2 In `tests/fakegrocy.py`, record `price` and `shopping_location_id` from the request
+- [x] 1.2 In `tests/fakegrocy.py`, record `price` and `shopping_location_id` from the request
   body on purchase log rows, seed a few purchase log rows (different dates and prices, one
   without a store), and serve the route from non-undone priced purchases; adjust any existing
   journal test whose row counts change, and verify the 1.1 tests and the full suite pass

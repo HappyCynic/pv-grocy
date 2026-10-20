@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from .conftest import Harness
-from .fakegrocy import FakeGrocy
+from .fakegrocy import FakeGrocy, seed
 
 pytestmark = pytest.mark.usefixtures("no_sleep")
 
@@ -35,7 +35,8 @@ async def test_a_write_that_timed_out_is_never_repeated(h: Harness, fake: FakeGr
     )
     assert fake.count("POST", "/stock/products/1/add") == 1
     # It was in fact applied once (the fake applies it, then times out): exactly one booking.
-    assert len([r for r in fake.db["stock_log"] if r["transaction_type"] == "purchase"]) == 1
+    assert fake.db["stock_log"][: len(seed()["stock_log"])] == seed()["stock_log"]
+    assert len(fake.db["stock_log"]) == len(seed()["stock_log"]) + 1
 
 
 @pytest.mark.parametrize("status", ["500", "502", "503", "504"])
@@ -59,7 +60,7 @@ async def test_a_write_that_cannot_connect_changed_nothing(h: Harness, fake: Fak
     for _ in range(3):
         fake.fail("POST", "/stock/products/1/add", "connect")
     assert "nothing was changed" in await h.error("stock_add", product="Milk", amount=1)
-    assert fake.db["stock_log"] == []
+    assert fake.db["stock_log"] == seed()["stock_log"]
 
 
 async def test_grocy_refusal_passes_its_message_without_details(h: Harness) -> None:

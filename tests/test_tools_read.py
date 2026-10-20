@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import base64
 
+import pytest
+
+from pv_grocy.errors import GrocyRejected
+
 from .conftest import Harness
 from .fakegrocy import FakeGrocy
 
@@ -62,6 +66,33 @@ async def test_stock_journal_filters_and_paging(h: Harness) -> None:
     assert (await h.call("stock_journal", as_="reader", transaction_id=tx))["entries"][0][
         "transaction_id"
     ] == tx
+
+
+async def test_fake_price_history_matches_grocy(h: Harness, fake: FakeGrocy) -> None:
+    assert h.runtime.services is not None
+    reader = h.runtime.services.reader
+    rows = await reader.get("/stock/products/1/price-history")
+    # Newest first; the purchase without a price and the undone one are left out.
+    assert [(r["date"], r["price"]) for r in rows] == [
+        ("2026-10-15", 1.2),
+        ("2026-10-01", 1.49),
+        ("2026-09-12", 0.99),
+    ]
+    assert [set(r) for r in rows] == [{"date", "price", "shopping_location"}] * 3
+    assert rows[0]["shopping_location"] == {"id": 2, "name": "Market"}
+    assert rows[1]["shopping_location"] is None
+    assert await reader.get("/stock/products/2/price-history") == []
+    await h.call("stock_add", product="Almond milk", amount=1, price=2.5, store="Market")
+    await h.call("stock_add", product="Almond milk", amount=1)  # no price: not in the history
+    tx = (await h.call("stock_add", product="Almond milk", amount=1, price=9))["transaction_id"]
+    await h.call("stock_undo", transaction_id=tx)
+    rows = await reader.get("/stock/products/2/price-history")
+    assert rows == [
+        {"date": "2026-10-20", "price": 2.5, "shopping_location": {"id": 2, "name": "Market"}}
+    ]
+    with pytest.raises(GrocyRejected, match="does not exist"):  # Grocy answers 400
+        await reader.get("/stock/products/99/price-history")
+    assert fake.requests[-1] == ("GET", "/stock/products/99/price-history")
 
 
 async def test_shopping_list_view(h: Harness) -> None:
