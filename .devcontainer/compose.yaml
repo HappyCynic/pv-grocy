@@ -29,7 +29,7 @@ services:
   # example config's grocy.url); the editor forwards it to the host ("Demo Grocy").
   # Never point live tests at a household's Grocy: they change data.
   grocy:
-    image: lscr.io/linuxserver/grocy:4.7.1@sha256:cae63f6c731f6ad8a3596eef097c136934a3a076e6ae533f933182187fe85a12
+    image: lscr.io/linuxserver/grocy:4.7.1@sha256:6282144f9a14d4a4dca2bc96801a2e43a2ff51116f001b13e5488eacad7b80e2
     environment:
       GROCY_MODE: demo
       TZ: Etc/UTC
